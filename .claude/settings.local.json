@@ -4,7 +4,8 @@
       "Bash(powershell.exe -Command \"robocopy ''C:\\\\Users\\\\darke\\\\OneDrive\\\\Desktop\\\\vs code\\\\PlateGallery-Bounty-Hunt'' ''C:\\\\Users\\\\darke\\\\OneDrive\\\\Desktop\\\\vs code\\\\plate-gallery'' /E /XD .git .venv node_modules\")",
       "Bash(echo:*)",
       "Bash(powershell.exe -Command \"Get-ChildItem -Recurse ''C:\\\\Users\\\\darke\\\\OneDrive\\\\Desktop\\\\vs code\\\\plate-gallery'' | Measure-Object | Select-Object -ExpandProperty Count\")",
-      "Bash(powershell.exe -Command:*)"
+      "Bash(powershell.exe -Command:*)",
+      "Bash(wsl -- bash -c:*)"
     ]
   }
 }

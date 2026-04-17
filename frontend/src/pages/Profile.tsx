@@ -48,7 +48,7 @@ export default function Profile() {
         <RevealOnScroll>
           <div className="flex items-center gap-6">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="h-16 w-16 rounded-full" />
+              <img src={avatarUrl} alt="" referrerPolicy="no-referrer" className="h-16 w-16 rounded-full" />
             ) : (
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-cream text-xl font-medium text-stone">
                 {displayName[0].toUpperCase()}

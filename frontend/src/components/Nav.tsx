@@ -55,6 +55,7 @@ export function Nav() {
                   <img
                     src={user.user_metadata.avatar_url}
                     alt=""
+                    referrerPolicy="no-referrer"
                     className="h-7 w-7 rounded-full"
                   />
                 ) : (
