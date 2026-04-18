@@ -147,6 +147,24 @@ class Vote(Base):
     plate: Mapped[Plate] = relationship(back_populates="vote_records", lazy="noload")
 
 
+class Favorite(Base):
+    __tablename__ = "favorites"
+    __table_args__ = (
+        Index("favorites_user_idx", "user_id", "created_at"),
+        Index("favorites_plate_idx", "plate_id"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    plate_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("plates.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class Comment(Base):
     __tablename__ = "comments"
     __table_args__ = (Index("comments_plate_idx", "plate_id", "created_at"),)

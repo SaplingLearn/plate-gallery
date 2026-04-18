@@ -59,3 +59,44 @@ async def leaderboard_overall(
     _cache[cache_key] = response
     _cache[f"{cache_key}_time"] = now
     return response
+
+
+@router.get("/state/{state_code}", response_model=LeaderboardResponse)
+async def leaderboard_state(
+    state_code: str,
+    window: Literal["day", "week", "month", "all"] = Query(default="all"),
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+) -> LeaderboardResponse:
+    code = state_code.upper()
+    cache_key = f"leaderboard_state_{code}_{window}_{limit}"
+    now = time.time()
+    if cache_key in _cache and now - _cache[f"{cache_key}_time"] < CACHE_TTL:
+        return _cache[cache_key]
+
+    stmt = (
+        select(Plate)
+        .where(Plate.status == PlateStatus.approved, Plate.state_code == code)
+        .order_by(Plate.score.desc(), Plate.created_at.desc())
+        .limit(limit)
+    )
+
+    if window == "day":
+        stmt = stmt.where(Plate.created_at > func.now() - text("interval '1 day'"))
+    elif window == "week":
+        stmt = stmt.where(Plate.created_at > func.now() - text("interval '7 days'"))
+    elif window == "month":
+        stmt = stmt.where(Plate.created_at > func.now() - text("interval '30 days'"))
+
+    result = await db.execute(stmt)
+    plates = list(result.scalars().all())
+
+    response = LeaderboardResponse(
+        items=[plate_to_response(p) for p in plates],
+        window=window,
+        generated_at=datetime.now(UTC).isoformat(),
+    )
+
+    _cache[cache_key] = response
+    _cache[f"{cache_key}_time"] = now
+    return response

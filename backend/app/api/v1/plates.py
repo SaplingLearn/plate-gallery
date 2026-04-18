@@ -30,7 +30,7 @@ PLATE_TEXT_RE = re.compile(r"^[A-Z0-9 \-]{1,8}$")
 
 
 def plate_to_response(
-    plate: Plate, user_vote: int = 0, include_status: bool = False
+    plate: Plate, user_vote: int = 0, include_status: bool = False, is_favorited: bool = False
 ) -> PlateResponse:
     state_name = plate.state.name if plate.state else plate.state_code
     author = None
@@ -56,6 +56,7 @@ def plate_to_response(
         comment_count=plate.comment_count,
         caption=plate.caption,
         created_at=plate.created_at.isoformat(),
+        is_favorited=is_favorited,
     )
     if include_status:
         resp.status = plate.status.value
@@ -91,10 +92,11 @@ async def get_plate(
     if plate is None:
         raise NotFoundError("Plate not found")
 
-    # User vote
+    # User vote + favorite
     user_vote = 0
+    is_favorited = False
     if user:
-        from app.db.models import Vote
+        from app.db.models import Favorite, Vote
 
         vote_result = await db.execute(
             select(Vote.value).where(Vote.user_id == user.id, Vote.plate_id == plate_id)
@@ -102,6 +104,11 @@ async def get_plate(
         row = vote_result.first()
         if row:
             user_vote = row.value
+
+        fav_result = await db.execute(
+            select(Favorite).where(Favorite.user_id == user.id, Favorite.plate_id == plate_id)
+        )
+        is_favorited = fav_result.scalar_one_or_none() is not None
 
     # Related plates (4 from same state, highest score, excluding self)
     related_stmt = (
@@ -117,7 +124,7 @@ async def get_plate(
     related_result = await db.execute(related_stmt)
     related_plates = list(related_result.scalars().all())
 
-    base = plate_to_response(plate, user_vote)
+    base = plate_to_response(plate, user_vote, is_favorited=is_favorited)
     return PlateDetailResponse(
         **base.model_dump(),
         related_plates=[plate_to_response(rp) for rp in related_plates],

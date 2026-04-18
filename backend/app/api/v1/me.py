@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import get_current_user
 from app.api.v1.plates import plate_to_response
-from app.db.models import Plate, User, Vote
+from app.db.models import Favorite, Plate, User, Vote
 from app.db.session import get_db
 from app.schemas.common import PaginatedResponse
 from app.schemas.plate import PlateResponse
@@ -44,6 +44,43 @@ async def get_my_plates(
         include_rejected=True,
     )
     items = [plate_to_response(p, user_votes.get(p.id, 0), include_status=True) for p in plates]
+    return PaginatedResponse(items=items, next_cursor=next_cursor)
+
+
+@router.get("/favorites", response_model=PaginatedResponse[PlateResponse])
+async def get_my_favorites(
+    cursor: str | None = Query(default=None),
+    limit: int = Query(default=24, ge=1, le=48),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaginatedResponse[PlateResponse]:
+    stmt = (
+        select(Favorite)
+        .where(Favorite.user_id == user.id)
+        .order_by(Favorite.created_at.desc())
+    )
+
+    if cursor:
+        cur = decode_cursor(cursor)
+        stmt = stmt.where(Favorite.created_at < cur["created_at"])
+
+    stmt = stmt.limit(limit + 1)
+    result = await db.execute(stmt)
+    favorites = list(result.scalars().all())
+
+    next_cursor = None
+    if len(favorites) > limit:
+        favorites = favorites[:limit]
+        last = favorites[-1]
+        next_cursor = encode_cursor({"created_at": last.created_at.isoformat()})
+
+    items = []
+    for fav in favorites:
+        plate_result = await db.execute(select(Plate).where(Plate.id == fav.plate_id))
+        plate = plate_result.scalar_one_or_none()
+        if plate:
+            items.append(plate_to_response(plate, is_favorited=True))
+
     return PaginatedResponse(items=items, next_cursor=next_cursor)
 
 

@@ -22,6 +22,7 @@ class PlateResponse(BaseModel):
     comment_count: int
     caption: str | None = None
     created_at: str
+    is_favorited: bool = False
     status: str | None = None
     rejection_reason: str | None = None
 

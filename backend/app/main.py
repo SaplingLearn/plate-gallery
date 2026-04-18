@@ -55,6 +55,7 @@ def create_app() -> FastAPI:
 
     # Register routers
     from app.api.v1.comments import router as comments_router
+    from app.api.v1.favorites import router as favorites_router
     from app.api.v1.leaderboard import router as leaderboard_router
     from app.api.v1.map import router as map_router
     from app.api.v1.me import router as me_router
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(plates_router, prefix="/api/v1")
     app.include_router(uploads_router, prefix="/api/v1")
     app.include_router(votes_router, prefix="/api/v1")
+    app.include_router(favorites_router, prefix="/api/v1")
     app.include_router(comments_router, prefix="/api/v1")
     app.include_router(states_router, prefix="/api/v1")
     app.include_router(map_router, prefix="/api/v1")

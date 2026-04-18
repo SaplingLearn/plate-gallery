@@ -125,9 +125,6 @@ async def create_comment(
     )
     db.add(comment)
 
-    # Update comment count
-    plate.comment_count += 1
-
     await db.commit()
     await db.refresh(comment)
 
