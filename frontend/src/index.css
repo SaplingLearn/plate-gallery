@@ -1,26 +1,33 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sofia+Sans+Extra+Condensed:wght@700;800;900&family=Nunito:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-bone: #F4F0E8;
-  --color-cream: #EBE4D4;
-  --color-charcoal: #1A1713;
-  --color-ink: #2E2924;
-  --color-stone: #8A8279;
-  --color-oxblood: #6B2F2F;
-  --color-sienna: #B8663A;
-  --color-sage: #7A8471;
-  --color-border: #D8D1C2;
+  --color-cream: #f5ecdc;
+  --color-paper: #fbf6ea;
+  --color-paper-edge: #ece2cc;
+  --color-ink: #1d1a14;
+  --color-ink-soft: #5a5246;
+  --color-ink-muted: #9a9181;
+  --color-rule: #2a251c;
+  --color-rust: #c24a20;
+  --color-rust-deep: #8f3414;
+  --color-cobalt: #1e3a8a;
+  --color-cobalt-lite: #3a5cc4;
+  --color-sky: #a9c6e8;
+  --color-mustard: #e6b245;
+  --color-mustard-lite: #f2cf7b;
+  --color-mint: #7ea28a;
+  --color-olive: #636b3a;
+  --color-cherry: #b6233d;
+  --color-white: #fffdf7;
+  --color-black: #0f0d09;
 
-  --font-display: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Sofia Sans Extra Condensed', 'Arial Narrow', sans-serif;
+  --font-sans: 'Nunito', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
-/* Base reset */
-*,
-*::before,
-*::after {
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
@@ -28,7 +35,7 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   color: var(--color-ink);
-  background-color: var(--color-bone);
+  background-color: var(--color-cream);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -40,12 +47,7 @@ body {
   flex-direction: column;
 }
 
-/* Typography */
-h1, h2, h3, h4, h5, h6 {
-  margin: 0;
-}
-
-p {
+h1, h2, h3, h4, h5, h6, p {
   margin: 0;
 }
 
@@ -59,7 +61,6 @@ img {
   max-width: 100%;
 }
 
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -68,23 +69,5 @@ img {
   }
 }
 
-/* Link hover underline draw effect */
-.link-draw {
-  position: relative;
-  display: inline-block;
-}
-
-.link-draw::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 0;
-  height: 1px;
-  background-color: currentColor;
-  transition: width 400ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.link-draw:hover::after {
-  width: 100%;
-}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

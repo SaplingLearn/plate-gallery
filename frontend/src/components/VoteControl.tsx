@@ -1,75 +1,69 @@
-import { motion } from 'framer-motion'
 import { clsx } from 'clsx'
-import { useAuth } from '@/hooks/AuthContext'
 import { useState } from 'react'
+import { useAuth } from '@/hooks/AuthContext'
 
 interface VoteControlProps {
   score: number
   userVote: 1 | -1 | 0
   onVote: (value: 1 | -1 | 0) => void
   disabled?: boolean
+  size?: 'sm' | 'md'
 }
 
-export function VoteControl({ score, userVote, onVote, disabled }: VoteControlProps) {
+export function VoteControl({ score, userVote, onVote, disabled, size = 'md' }: VoteControlProps) {
   const { user } = useAuth()
   const [showAuthPrompt, setShowAuthPrompt] = useState(false)
+  const btn = size === 'sm' ? 'h-7 w-7 text-[14px]' : 'h-9 w-9 text-[18px]'
+  const num = size === 'sm' ? 'text-[16px] px-2.5 min-w-[32px]' : 'text-[22px] px-3 min-w-[40px]'
 
   function handleVote(value: 1 | -1) {
     if (!user) {
       setShowAuthPrompt(true)
-      setTimeout(() => setShowAuthPrompt(false), 3000)
+      setTimeout(() => setShowAuthPrompt(false), 2500)
       return
     }
     onVote(userVote === value ? 0 : value)
   }
 
   return (
-    <div className="relative flex items-center gap-4">
-      <motion.button
-        whileTap={{ scale: 1.15 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
+    <div
+      className="relative inline-flex items-center gap-0.5 rounded-full border-[1.5px] border-rule bg-cream p-[3px]"
+    >
+      <button
+        type="button"
         onClick={() => handleVote(1)}
         disabled={disabled}
-        className={clsx(
-          'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
-          userVote === 1 ? 'bg-sage text-bone' : 'bg-cream text-stone hover:text-charcoal',
-        )}
         aria-label="Upvote"
+        aria-pressed={userVote === 1}
+        className={clsx(
+          'flex items-center justify-center rounded-full font-black leading-none transition-colors disabled:opacity-60',
+          btn,
+          userVote === 1 ? 'bg-rust text-white' : 'bg-rust/95 text-white hover:bg-rust',
+        )}
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M8 3L3 10h10L8 3z" />
-        </svg>
-      </motion.button>
-
-      <span className="min-w-[3ch] text-center font-display text-2xl tabular-nums text-charcoal">
+        ▲
+      </button>
+      <span className={clsx('text-center font-display font-black tabular-nums tracking-tight text-ink', num)}>
         {score}
       </span>
-
-      <motion.button
-        whileTap={{ scale: 1.15 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
+      <button
+        type="button"
         onClick={() => handleVote(-1)}
         disabled={disabled}
-        className={clsx(
-          'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
-          userVote === -1 ? 'bg-oxblood text-bone' : 'bg-cream text-stone hover:text-charcoal',
-        )}
         aria-label="Downvote"
+        aria-pressed={userVote === -1}
+        className={clsx(
+          'flex items-center justify-center rounded-full font-black leading-none transition-colors disabled:opacity-60',
+          btn,
+          userVote === -1 ? 'bg-ink text-cream' : 'bg-paper text-ink-soft hover:bg-paper-edge',
+        )}
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M8 13L3 6h10L8 13z" />
-        </svg>
-      </motion.button>
-
+        ▼
+      </button>
       {showAuthPrompt && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          className="absolute -top-12 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-charcoal px-3 py-1.5 text-xs text-bone"
-        >
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-3 py-1.5 text-xs font-bold text-cream shadow-lg">
           <a href="/login" className="underline">Sign in</a> to vote
-        </motion.div>
+        </div>
       )}
     </div>
   )

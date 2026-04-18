@@ -1,4 +1,5 @@
 import { getSession } from './supabase'
+import { handleMockRequest, isMockMode } from './mockData'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -20,6 +21,15 @@ export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
+  if (isMockMode()) {
+    try {
+      return await handleMockRequest<T>(path, options)
+    } catch (err) {
+      const e = err as { status?: number; code?: string; message?: string }
+      throw new ApiError(e.status ?? 500, e.code ?? 'mock_error', e.message ?? 'Mock error')
+    }
+  }
+
   const session = await getSession()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
