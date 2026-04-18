@@ -9,6 +9,7 @@ import type {
   StateDetail,
   LeaderboardResponse,
   VoteResponse,
+  FavoriteResponse,
   UserProfile,
   UserVote,
   UploadSignResponse,
@@ -75,6 +76,14 @@ export function useLeaderboard(window: string, limit = 50) {
   })
 }
 
+export function useStateLeaderboard(stateCode: string, window: string, limit = 10) {
+  return useQuery({
+    queryKey: queryKeys.leaderboard.state(stateCode, window),
+    queryFn: () => apiFetch<LeaderboardResponse>(`/leaderboard/state/${stateCode}?window=${window}&limit=${limit}`),
+    enabled: !!stateCode,
+  })
+}
+
 // Vote
 export function useVote(plateId: string) {
   const queryClient = useQueryClient()
@@ -109,6 +118,35 @@ export function useMyPlates() {
     },
     initialPageParam: '' as string,
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+  })
+}
+
+export function useMyFavorites() {
+  return useInfiniteQuery({
+    queryKey: queryKeys.me.favorites,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams()
+      if (pageParam) params.set('cursor', pageParam)
+      return apiFetch<PaginatedResponse<Plate>>(`/me/favorites?${params}`)
+    },
+    initialPageParam: '' as string,
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+  })
+}
+
+export function useToggleFavorite(plateId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<FavoriteResponse>(`/plates/${plateId}/favorite`, { method: 'POST' }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.me.favorites })
+      // Patch is_favorited in-place so we don't trigger a full refetch mid-vote
+      queryClient.setQueryData(queryKeys.plates.detail(plateId), (old: unknown) => {
+        if (!old || typeof old !== 'object') return old
+        return { ...(old as object), is_favorited: data.is_favorited }
+      })
+    },
   })
 }
 

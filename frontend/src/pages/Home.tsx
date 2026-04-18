@@ -1,13 +1,75 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion, useScroll, useTransform } from 'framer-motion'
-import { useRef } from 'react'
+import { useRef, useState, memo } from 'react'
+import { ComposableMap, Geographies, Geography } from 'react-simple-maps'
 import { Container } from '@/components/Container'
 import { Eyebrow } from '@/components/Eyebrow'
 import { RevealOnScroll } from '@/components/RevealOnScroll'
 import { PlateCard } from '@/components/PlateCard'
 import { Divider } from '@/components/Divider'
 import { useRecentPlates, useLeaderboard, useMapSummary } from '@/hooks/useApi'
-import { US_STATES } from '@/lib/states'
+import type { StateSummary } from '@/lib/types'
+
+const GEO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json'
+
+const FIPS_TO_CODE: Record<string, string> = {
+  '01':'AL','02':'AK','04':'AZ','05':'AR','06':'CA','08':'CO','09':'CT',
+  '10':'DE','11':'DC','12':'FL','13':'GA','15':'HI','16':'ID','17':'IL',
+  '18':'IN','19':'IA','20':'KS','21':'KY','22':'LA','23':'ME','24':'MD',
+  '25':'MA','26':'MI','27':'MN','28':'MS','29':'MO','30':'MT','31':'NE',
+  '32':'NV','33':'NH','34':'NJ','35':'NM','36':'NY','37':'NC','38':'ND',
+  '39':'OH','40':'OK','41':'OR','42':'PA','44':'RI','45':'SC','46':'SD',
+  '47':'TN','48':'TX','49':'UT','50':'VT','51':'VA','53':'WA','54':'WV',
+  '55':'WI','56':'WY',
+}
+
+function getFillColor(count: number): string {
+  if (count === 0) return '#EBE4D4'
+  if (count <= 5) return '#a0ac97'
+  if (count <= 25) return '#8a9a81'
+  return '#7A8471'
+}
+
+const HomeMapChart = memo(function HomeMapChart({
+  stateMap,
+  onStateClick,
+  onStateHover,
+}: {
+  stateMap: Map<string, StateSummary>
+  onStateClick: (code: string) => void
+  onStateHover: (data: { name: string; count: number; x: number; y: number } | null) => void
+}) {
+  return (
+    <ComposableMap projection="geoAlbersUsa" projectionConfig={{ scale: 900 }}>
+      <Geographies geography={GEO_URL}>
+        {({ geographies }) =>
+          geographies.map((geo) => {
+            const code = FIPS_TO_CODE[geo.id]
+            if (!code) return null
+            const count = stateMap.get(code)?.plate_count ?? 0
+            return (
+              <Geography
+                key={geo.rsmKey}
+                geography={geo}
+                onClick={() => onStateClick(code)}
+                onMouseEnter={(e) => {
+                  const rect = (e.target as SVGElement).getBoundingClientRect()
+                  onStateHover({ name: geo.properties.name, count, x: rect.left + rect.width / 2, y: rect.top })
+                }}
+                onMouseLeave={() => onStateHover(null)}
+                style={{
+                  default: { fill: getFillColor(count), stroke: '#D8D1C2', strokeWidth: 0.5, outline: 'none', cursor: 'pointer' },
+                  hover: { fill: count > 0 ? '#6a7a62' : '#D8D1C2', stroke: '#D8D1C2', strokeWidth: 0.5, outline: 'none', cursor: 'pointer' },
+                  pressed: { fill: '#5a6a52', outline: 'none' },
+                }}
+              />
+            )
+          })
+        }
+      </Geographies>
+    </ComposableMap>
+  )
+})
 
 function Hero() {
   const ref = useRef<HTMLDivElement>(null)
@@ -114,8 +176,13 @@ function LatestPlates() {
 
 function MapPreview() {
   const { data } = useMapSummary()
+  const navigate = useNavigate()
+  const [tooltip, setTooltip] = useState<{ name: string; count: number; x: number; y: number } | null>(null)
+
   const states = data?.states ?? []
   const unlocked = states.filter((s) => s.plate_count > 0).length
+  const stateMap = new Map<string, StateSummary>()
+  states.forEach((s) => stateMap.set(s.code, s))
 
   return (
     <section className="bg-cream py-24">
@@ -131,30 +198,47 @@ function MapPreview() {
                 ? `${unlocked} of 51 states unlocked. Help fill the map.`
                 : 'No states unlocked yet. Be the first to contribute.'}
             </p>
+          </div>
 
-            {/* Mini map grid as a visual stand-in */}
-            <div className="mt-10 grid w-full max-w-2xl grid-cols-6 gap-1 sm:grid-cols-9 md:grid-cols-11">
-              {Object.keys(US_STATES).map((code) => {
-                const stateData = states.find((s) => s.code === code)
-                const hasPlates = stateData && stateData.plate_count > 0
-                return (
-                  <Link
-                    key={code}
-                    to={`/states/${code}`}
-                    className={`flex aspect-square items-center justify-center rounded-sm text-[10px] font-sans font-medium transition-colors ${
-                      hasPlates
-                        ? 'bg-sage text-bone hover:bg-sage/80'
-                        : 'bg-border/50 text-stone/60 hover:bg-border'
-                    }`}
-                    title={`${US_STATES[code]}: ${stateData?.plate_count ?? 0} plates`}
-                  >
-                    {code}
-                  </Link>
-                )
-              })}
+          <div className="relative mt-8 w-full">
+            <HomeMapChart
+              stateMap={stateMap}
+              onStateClick={(code) => navigate(`/states/${code}`)}
+              onStateHover={setTooltip}
+            />
+            {tooltip && (
+              <div
+                className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded bg-charcoal px-3 py-2 text-xs text-bone shadow-lg"
+                style={{ left: tooltip.x, top: tooltip.y - 8 }}
+              >
+                <span className="font-medium">{tooltip.name}</span>
+                <span className="ml-2 text-bone/60">{tooltip.count} plates</span>
+              </div>
+            )}
+          </div>
+
+          {/* Legend */}
+          <div className="mt-2 flex items-center justify-end gap-4">
+            <div className="flex items-center gap-1.5">
+              <div className="h-3 w-3 rounded-sm bg-cream border border-border" />
+              <span className="text-xs text-stone">0</span>
             </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: '#a0ac97' }} />
+              <span className="text-xs text-stone">1–5</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: '#8a9a81' }} />
+              <span className="text-xs text-stone">6–25</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-3 w-3 rounded-sm bg-sage" />
+              <span className="text-xs text-stone">26+</span>
+            </div>
+          </div>
 
-            <Link to="/states" className="link-draw mt-10 font-sans text-sm text-oxblood">
+          <div className="mt-6 text-center">
+            <Link to="/states" className="link-draw font-sans text-sm text-oxblood">
               Open the map <span aria-hidden="true">&rarr;</span>
             </Link>
           </div>

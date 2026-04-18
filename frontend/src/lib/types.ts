@@ -19,8 +19,13 @@ export interface Plate {
   comment_count: number
   caption?: string
   created_at: string
+  is_favorited?: boolean
   status?: 'approved' | 'rejected'
   rejection_reason?: string
+}
+
+export interface FavoriteResponse {
+  is_favorited: boolean
 }
 
 export interface PlateDetail extends Plate {

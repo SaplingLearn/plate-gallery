@@ -7,7 +7,7 @@ export const queryKeys = {
   },
   leaderboard: {
     overall: (window: string) => ['leaderboard', 'overall', window] as const,
-    state: (stateCode: string) => ['leaderboard', 'state', stateCode] as const,
+    state: (stateCode: string, window: string) => ['leaderboard', 'state', stateCode, window] as const,
   },
   map: {
     summary: ['map', 'summary'] as const,
@@ -19,5 +19,6 @@ export const queryKeys = {
     profile: ['me'] as const,
     plates: ['me', 'plates'] as const,
     votes: ['me', 'votes'] as const,
+    favorites: ['me', 'favorites'] as const,
   },
 }

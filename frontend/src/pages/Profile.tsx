@@ -8,10 +8,10 @@ import { Eyebrow } from '@/components/Eyebrow'
 import { RevealOnScroll } from '@/components/RevealOnScroll'
 import { PlateCard } from '@/components/PlateCard'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
-import { useMyPlates, useMyVotes } from '@/hooks/useApi'
+import { useMyPlates, useMyVotes, useMyFavorites } from '@/hooks/useApi'
 import { signOut } from '@/lib/supabase'
 
-type Tab = 'plates' | 'votes'
+type Tab = 'plates' | 'votes' | 'favorites'
 
 export default function Profile() {
   const { user, loading } = useRequireAuth()
@@ -21,9 +21,11 @@ export default function Profile() {
 
   const { data: platesData } = useMyPlates()
   const { data: votesData } = useMyVotes()
+  const { data: favoritesData } = useMyFavorites()
 
   const plates = platesData?.pages.flatMap((p) => p.items) ?? []
   const votes = votesData?.pages.flatMap((p) => p.items) ?? []
+  const favorites = favoritesData?.pages.flatMap((p) => p.items) ?? []
 
   async function handleSignOut() {
     await signOut()
@@ -71,7 +73,7 @@ export default function Profile() {
 
         {/* Tabs */}
         <div className="mt-10 flex gap-1 border-b border-border">
-          {(['plates', 'votes'] as const).map((t) => (
+          {(['plates', 'votes', 'favorites'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -82,7 +84,7 @@ export default function Profile() {
                   : 'border-transparent text-stone hover:text-charcoal',
               )}
             >
-              My {t}
+              {t === 'favorites' ? 'Favorites' : `My ${t}`}
             </button>
           ))}
         </div>
@@ -113,6 +115,25 @@ export default function Profile() {
           </div>
         )}
 
+        {tab === 'favorites' && (
+          <div className="mt-10">
+            {favorites.length > 0 ? (
+              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+                {favorites.map((plate) => (
+                  <PlateCard key={plate.id} plate={plate} />
+                ))}
+              </div>
+            ) : (
+              <div className="py-16 text-center">
+                <p className="text-sm text-stone">You haven't saved any plates yet.</p>
+                <a href="/gallery" className="link-draw mt-4 inline-block text-sm text-oxblood">
+                  Browse the gallery <span aria-hidden="true">&rarr;</span>
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
         {tab === 'votes' && (
           <div className="mt-10">
             {votes.length > 0 ? (
@@ -132,6 +153,7 @@ export default function Profile() {
                     <img
                       src={vote.plate.image_thumb_url || vote.plate.image_url}
                       alt=""
+                      onError={(e) => { e.currentTarget.src = vote.plate.image_url }}
                       className="h-10 w-10 rounded-sm object-cover"
                     />
                     <div className="flex-1">

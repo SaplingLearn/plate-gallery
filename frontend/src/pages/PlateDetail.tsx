@@ -6,7 +6,7 @@ import { RevealOnScroll } from '@/components/RevealOnScroll'
 import { VoteControl } from '@/components/VoteControl'
 import { PlateCard } from '@/components/PlateCard'
 import { Divider } from '@/components/Divider'
-import { usePlateDetail, useVote, useComments, useCreateComment } from '@/hooks/useApi'
+import { usePlateDetail, useVote, useComments, useCreateComment, useToggleFavorite } from '@/hooks/useApi'
 import { useAuth } from '@/hooks/AuthContext'
 import { queryKeys } from '@/lib/queryKeys'
 import type { PlateDetail as PlateDetailType } from '@/lib/types'
@@ -16,6 +16,7 @@ export default function PlateDetail() {
   const { id } = useParams<{ id: string }>()
   const { data: plate, isLoading } = usePlateDetail(id!)
   const voteMutation = useVote(id!)
+  const favoriteMutation = useToggleFavorite(id!)
   const queryClient = useQueryClient()
   const { user } = useAuth()
 
@@ -134,13 +135,24 @@ export default function PlateDetail() {
           </RevealOnScroll>
 
           <RevealOnScroll delay={0.1}>
-            <div className="mt-10">
+            <div className="mt-10 flex items-center gap-4">
               <VoteControl
                 score={plate.score}
                 userVote={plate.user_vote}
                 onVote={handleVote}
                 disabled={voteMutation.isPending}
               />
+              {user && (
+                <button
+                  onClick={() => favoriteMutation.mutate()}
+                  disabled={favoriteMutation.isPending}
+                  aria-label={plate.is_favorited ? 'Remove from favorites' : 'Add to favorites'}
+                  className="flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 font-sans text-sm transition-colors hover:border-charcoal disabled:opacity-40"
+                >
+                  <span className="text-base leading-none">{plate.is_favorited ? '♥' : '♡'}</span>
+                  <span className="text-stone">{plate.is_favorited ? 'Favorited' : 'Favorite'}</span>
+                </button>
+              )}
             </div>
           </RevealOnScroll>
 
