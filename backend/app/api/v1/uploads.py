@@ -67,7 +67,7 @@ async def sign_upload(
     ext = content_type.split("/")[-1]
     if ext == "jpeg":
         ext = "jpg"
-    object_path = f"plates/{now.year}/{now.month:02d}/{plate_id}.{ext}"
+    object_path = f"{now.year}/{now.month:02d}/{plate_id}.{ext}"
 
     # Generate upload token
     upload_token = secrets.token_urlsafe(32)
@@ -86,7 +86,9 @@ async def sign_upload(
     # Get signed upload URL from Supabase
     try:
         signed_url = await storage_service.create_signed_upload_url(object_path)
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("Supabase storage error: %s", e)
         raise ValidationError("Failed to create upload URL. Please try again.")
 
     await db.commit()

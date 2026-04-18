@@ -9,10 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def compute_phash(image_bytes: bytes) -> int:
-    """Compute a 64-bit perceptual hash of the image."""
+    """Compute a 64-bit perceptual hash as a signed int64 (PostgreSQL bigint)."""
     img = Image.open(io.BytesIO(image_bytes))
     h = imagehash.phash(img)
-    return int(str(h), 16)
+    value = int(str(h), 16)
+    if value >= 2**63:
+        value -= 2**64
+    return value
 
 
 async def find_duplicate(
@@ -25,7 +28,7 @@ async def find_duplicate(
           AND status = 'approved'
           AND created_at > now() - interval '90 days'
           AND image_phash IS NOT NULL
-          AND bit_count((:phash::bigint) # image_phash) <= :threshold
+          AND bit_count((CAST(:phash AS bigint) # image_phash)::bit(64)) <= :threshold
         LIMIT 1
     """)
     result = await db.execute(

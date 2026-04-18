@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import UnauthorizedError
@@ -18,14 +19,10 @@ async def sync_user(
     authorization: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> UserProfileResponse:
-    """Upsert user on first login. Creates or updates the user row from JWT claims."""
     if not authorization or not authorization.startswith("Bearer "):
         raise UnauthorizedError()
     token = authorization.removeprefix("Bearer ").strip()
     claims = await verify_jwt(token)
-
-    result = await db.execute(select(User).where(User.id == claims.sub))
-    user = result.scalar_one_or_none()
 
     meta = claims.user_metadata
     display_name = meta.get("full_name") or meta.get("name") or ""
@@ -33,24 +30,28 @@ async def sync_user(
         display_name = claims.email.split("@")[0]
     avatar_url = meta.get("avatar_url") or meta.get("picture")
 
-    if user is None:
-        user = User(
+    stmt = (
+        insert(User)
+        .values(
             id=claims.sub,
             email=claims.email,
             display_name=display_name or "Anonymous",
             avatar_url=avatar_url,
         )
-        db.add(user)
-    else:
-        if display_name:
-            user.display_name = display_name
-        if avatar_url:
-            user.avatar_url = avatar_url
-        if claims.email:
-            user.email = claims.email
-
+        .on_conflict_do_update(
+            index_elements=["id"],
+            set_={
+                "email": claims.email,
+                "display_name": display_name or User.display_name,
+                "avatar_url": avatar_url or User.avatar_url,
+            },
+        )
+    )
+    await db.execute(stmt)
     await db.commit()
-    await db.refresh(user)
+
+    result = await db.execute(select(User).where(User.id == claims.sub))
+    user = result.scalar_one()
 
     return UserProfileResponse(
         id=str(user.id),
