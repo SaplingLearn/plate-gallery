@@ -16,33 +16,115 @@ const SORTS = [
   { k: 'top_all', label: 'Top all-time' },
 ]
 
-function FeedSideNav() {
+function FeedSideNav({
+  currentState,
+  onStateChange,
+}: {
+  currentState: string | null
+  onStateChange: (code: string | null) => void
+}) {
   const { user } = useAuth()
+  const { data: mapSummary } = useMapSummary()
+  const { data: weekBoard } = useLeaderboard('week')
+  const topStates = [...(mapSummary?.states ?? [])]
+    .filter((s) => s.plate_count > 0)
+    .sort((a, b) => b.plate_count - a.plate_count)
+    .slice(0, 6)
+  const weekTop = (weekBoard?.items ?? []).slice(0, 3)
+
   return (
-    <aside className="border-r-[1.5px] border-rule p-5">
-      <div className="flex flex-col gap-0.5">
-        <Link to="/" className="flex items-center gap-2.5 rounded-lg bg-ink px-3 py-2.5 text-[14px] font-bold text-cream">
-          <span className="w-4 text-center">⌂</span> Home
-        </Link>
-        <Link to="/states" className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[14px] font-bold text-ink hover:bg-paper">
-          <span className="w-4 text-center">◉</span> USA Map
-        </Link>
-        <Link to="/leaderboard" className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[14px] font-bold text-ink hover:bg-paper">
-          <span className="w-4 text-center">★</span> Leaderboards
-        </Link>
-        {user && (
-          <>
-            <Link to="/profile" className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[14px] font-bold text-ink hover:bg-paper">
-              <span className="w-4 text-center">♥</span> Saved
-            </Link>
-            <Link to="/profile" className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[14px] font-bold text-ink hover:bg-paper">
-              <span className="w-4 text-center">▣</span> Your posts
-            </Link>
-          </>
-        )}
+    <aside className="flex flex-col gap-5 border-r-[1.5px] border-rule p-5">
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="font-mono text-[10px] font-bold uppercase tracking-[1.5px] text-ink-muted">
+            FILTER BY STATE
+          </div>
+          {currentState && (
+            <button
+              type="button"
+              onClick={() => onStateChange(null)}
+              className="text-[10px] font-extrabold uppercase tracking-wide text-rust hover:underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <motion.button
+            type="button"
+            onClick={() => onStateChange(null)}
+            whileTap={{ scale: 0.94 }}
+            className={clsx(
+              'rounded-full border-[1.5px] border-rule px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide transition-colors',
+              !currentState ? 'bg-ink text-cream' : 'bg-paper text-ink hover:bg-cream',
+            )}
+          >
+            All states
+          </motion.button>
+          {topStates.map((s) => (
+            <motion.button
+              key={s.code}
+              type="button"
+              onClick={() => onStateChange(s.code)}
+              whileTap={{ scale: 0.94 }}
+              className={clsx(
+                'flex items-center gap-1.5 rounded-full border-[1.5px] border-rule px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide transition-colors',
+                currentState === s.code ? 'bg-ink text-cream' : 'bg-paper text-ink hover:bg-cream',
+              )}
+            >
+              <StateBadge code={s.code} size="sm" />
+              <span>{s.code}</span>
+              <span className="font-mono text-[10px] opacity-70">{s.plate_count}</span>
+            </motion.button>
+          ))}
+          {topStates.length === 0 && (
+            <div className="text-[11px] font-semibold text-ink-muted">No plates uploaded yet.</div>
+          )}
+        </div>
       </div>
 
-      <div className="mt-6 rounded-xl border-[1.5px] border-rule bg-mustard-lite p-4">
+      <div>
+        <div className="mb-2 font-mono text-[10px] font-bold uppercase tracking-[1.5px] text-ink-muted">
+          TOP THIS WEEK
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {weekTop.map((p, i) => (
+            <Link
+              key={p.id}
+              to={`/plate/${p.id}`}
+              className="group flex items-center gap-2.5 rounded-lg border-[1.5px] border-rule bg-paper px-2.5 py-2 transition-transform hover:-translate-y-px"
+            >
+              <div
+                className={clsx(
+                  'font-display text-[18px] font-black leading-none tracking-tight',
+                  i === 0 ? 'text-rust' : i === 1 ? 'text-cobalt' : 'text-mustard',
+                )}
+              >
+                {i + 1}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-display text-[14px] font-black tracking-tight text-ink">
+                  "{p.plate_text}"
+                </div>
+                <div className="flex items-center gap-1 text-[10px] font-semibold text-ink-soft">
+                  <span>▲ {p.score.toLocaleString()}</span>
+                  <span className="opacity-60">·</span>
+                  <span>{p.state_code}</span>
+                </div>
+              </div>
+            </Link>
+          ))}
+          {weekTop.length === 0 && (
+            <div className="text-[11px] font-semibold text-ink-muted">Nothing ranked yet this week.</div>
+          )}
+        </div>
+      </div>
+
+      <motion.div
+        whileHover={{ y: -2 }}
+        transition={{ duration: 0.2 }}
+        className="rounded-xl border-[1.5px] border-rule bg-mustard-lite p-4"
+      >
         <div className="font-display text-[22px] font-black uppercase leading-[0.95] tracking-tight text-ink">
           SPOTTED<br />A PLATE?
         </div>
@@ -55,7 +137,7 @@ function FeedSideNav() {
         >
           START AN UPLOAD →
         </Link>
-      </div>
+      </motion.div>
     </aside>
   )
 }
@@ -214,7 +296,11 @@ function FeedRightRail() {
 export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams()
   const sort = searchParams.get('sort') || 'top_week'
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed({ sort })
+  const stateFilter = searchParams.get('state')
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed({
+    sort,
+    state: stateFilter || undefined,
+  })
   const plates = data?.pages.flatMap((p) => p.items) ?? []
 
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -238,6 +324,13 @@ export default function Home() {
     setSearchParams(next, { replace: true })
   }
 
+  function setStateFilter(code: string | null) {
+    const next = new URLSearchParams(searchParams)
+    if (code) next.set('state', code)
+    else next.delete('state')
+    setSearchParams(next, { replace: true })
+  }
+
   return (
     <motion.main
       initial={{ opacity: 0, y: 4 }}
@@ -246,7 +339,7 @@ export default function Home() {
       transition={{ duration: 0.25 }}
       className="grid min-h-[calc(100vh-72px)] grid-cols-[220px_1fr_300px]"
     >
-      <FeedSideNav />
+      <FeedSideNav currentState={stateFilter} onStateChange={setStateFilter} />
       <section className="overflow-hidden px-7 py-5">
         <FeedHero count={plates.length} />
         <div className="mt-5 flex flex-wrap items-center gap-2">

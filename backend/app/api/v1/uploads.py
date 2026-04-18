@@ -17,7 +17,7 @@ from app.services.storage import storage_service
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
-ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
 class UploadSignRequest:

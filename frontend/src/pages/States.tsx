@@ -87,7 +87,11 @@ function QuickPeek({ code, name, count }: { code: string; name: string; count: n
   const top = data?.items?.[0]
   const others = (data?.items ?? []).slice(1, 4)
   const navigate = useNavigate()
-  const labelParts = name.toUpperCase().split(/(?<=A|E|I|O|U)-?/)
+
+  // Scale the display name so long names ("Massachusetts", "Pennsylvania") don't overflow the 340px panel.
+  const upper = name.toUpperCase()
+  const longest = upper.split(' ').reduce((a, w) => Math.max(a, w.length), 0)
+  const nameSize = longest >= 13 ? 30 : longest >= 10 ? 36 : longest >= 8 ? 40 : 44
 
   return (
     <div
@@ -100,9 +104,11 @@ function QuickPeek({ code, name, count }: { code: string; name: string; count: n
           HOVERED
         </div>
       </div>
-      <div className="font-display text-[44px] font-black uppercase leading-[0.85] tracking-[-1.5px] text-cream">
-        {labelParts[0]}
-        {labelParts[1] ? <><br />{labelParts[1]}</> : null}.
+      <div
+        className="font-display font-black uppercase leading-[0.88] tracking-[-1px] text-cream break-words"
+        style={{ fontSize: nameSize }}
+      >
+        {upper}.
       </div>
       <div className="text-[12px] font-bold text-mustard">
         {count} plates {count === 0 && '· locked'}

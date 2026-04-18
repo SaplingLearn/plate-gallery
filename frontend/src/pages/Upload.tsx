@@ -10,7 +10,9 @@ import { Pill } from '@/components/Pill'
 import { PG } from '@/lib/design'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+// iOS Safari auto-converts HEIC camera photos to JPEG when HEIC isn't in the accept list.
+// Browsers other than Safari can't render HEIC, so we keep it out of the allowed set entirely.
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 type Step = 'choose' | 'details' | 'submitting' | 'error' | 'rejected'
 
@@ -205,7 +207,7 @@ export default function Upload() {
                 <input
                   ref={fileRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                  accept="image/jpeg,image/png,image/webp"
                   capture="environment"
                   className="hidden"
                   onChange={(e) => {

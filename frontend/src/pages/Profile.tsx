@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { clsx } from 'clsx'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
@@ -14,27 +14,63 @@ import type { Plate } from '@/lib/types'
 
 type Tab = 'plates' | 'votes' | 'favorites'
 
-function ProfileStat({ v, l, accent }: { v: string; l: string; accent?: string }) {
+const EASE_OUT = [0.22, 1, 0.36, 1] as const
+
+function useCountUp(target: number, duration = 700, enabled = true) {
+  const [value, setValue] = useState(enabled ? 0 : target)
+  useEffect(() => {
+    if (!enabled) return
+    let raf = 0
+    let start: number | null = null
+    const tick = (t: number) => {
+      if (start === null) start = t
+      const p = Math.min(1, (t - start) / duration)
+      const eased = 1 - Math.pow(1 - p, 3)
+      setValue(Math.round(target * eased))
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, duration, enabled])
+  return enabled ? value : target
+}
+
+function ProfileStat({ v, l, accent }: { v: number; l: string; accent?: string }) {
+  const reduced = useReducedMotion()
+  const count = useCountUp(v, 700, !reduced)
   return (
-    <div className="min-w-[86px] rounded-xl border-[1.5px] border-rule bg-cream px-3.5 py-2.5">
+    <motion.div
+      variants={{
+        hidden: { opacity: 0, y: 10 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: EASE_OUT } },
+      }}
+      whileHover={{ y: -2 }}
+      className="min-w-[86px] rounded-xl border-[1.5px] border-rule bg-cream px-3.5 py-2.5"
+    >
       <div
-        className="font-display text-[30px] font-black leading-none tracking-[-0.5px]"
+        className="font-display text-[30px] font-black leading-none tracking-[-0.5px] tabular-nums"
         style={{ color: accent ?? PG.c.ink }}
       >
-        {v}
+        {count.toLocaleString()}
       </div>
       <div className="font-mono text-[10px] font-bold uppercase tracking-wide text-ink-muted">
         {l}
       </div>
-    </div>
+    </motion.div>
   )
 }
 
 function PlateTile({ plate, rankLabel }: { plate: Plate; rankLabel?: string }) {
   return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -3 }}
+      transition={{ duration: 0.3, ease: EASE_OUT }}
+    >
     <Link
       to={`/plate/${plate.id}`}
-      className="overflow-hidden rounded-[14px] border-[1.5px] border-rule bg-paper"
+      className="block overflow-hidden rounded-[14px] border-[1.5px] border-rule bg-paper"
       style={{ boxShadow: '0 2px 0 var(--color-rule)' }}
     >
       <div className="relative">
@@ -70,6 +106,7 @@ function PlateTile({ plate, rankLabel }: { plate: Plate; rankLabel?: string }) {
         </span>
       </div>
     </Link>
+    </motion.div>
   )
 }
 
@@ -111,31 +148,52 @@ export default function Profile() {
 
   return (
     <motion.main
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 4 }}
-      transition={{ duration: 0.25 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
     >
       {/* Header */}
-      <div className="border-b-[1.5px] border-rule bg-paper px-8 py-7">
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={{
+          hidden: {},
+          show: { transition: { staggerChildren: 0.07, delayChildren: 0.05 } },
+        }}
+        className="border-b-[1.5px] border-rule bg-paper px-8 py-7"
+      >
         <div className="flex flex-wrap items-center gap-5">
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt=""
-              referrerPolicy="no-referrer"
-              className="h-[120px] w-[120px] rounded-full border-[3px] border-rule object-cover"
-              style={{ boxShadow: '0 4px 0 var(--color-rule)' }}
-            />
-          ) : (
-            <div
-              className="flex h-[120px] w-[120px] items-center justify-center rounded-full border-[3px] border-rule bg-cobalt font-display text-[54px] font-black text-cream"
-              style={{ boxShadow: '0 4px 0 var(--color-rule)' }}
-            >
-              {initials}
-            </div>
-          )}
-          <div className="min-w-0">
+          <motion.div
+            variants={{
+              hidden: { opacity: 0, scale: 0.82 },
+              show: { opacity: 1, scale: 1, transition: { duration: 0.45, ease: EASE_OUT } },
+            }}
+          >
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="h-[120px] w-[120px] rounded-full border-[3px] border-rule object-cover"
+                style={{ boxShadow: '0 4px 0 var(--color-rule)' }}
+              />
+            ) : (
+              <div
+                className="flex h-[120px] w-[120px] items-center justify-center rounded-full border-[3px] border-rule bg-cobalt font-display text-[54px] font-black text-cream"
+                style={{ boxShadow: '0 4px 0 var(--color-rule)' }}
+              >
+                {initials}
+              </div>
+            )}
+          </motion.div>
+          <motion.div
+            variants={{
+              hidden: { opacity: 0, x: -12 },
+              show: { opacity: 1, x: 0, transition: { duration: 0.4, ease: EASE_OUT } },
+            }}
+            className="min-w-0"
+          >
             <div className="font-mono text-[11px] font-bold uppercase tracking-[1.5px] text-ink-muted">
               @{handle.toUpperCase()} · JOINED{' '}
               {new Date(user.created_at).toLocaleDateString('en-US', {
@@ -151,43 +209,75 @@ export default function Profile() {
                 ? `${plates.length} plates uploaded · chasing the nation one hood at a time.`
                 : 'No plates uploaded yet — your gallery is waiting.'}
             </div>
-          </div>
-          <div className="ml-auto flex flex-wrap items-center gap-3">
-            <ProfileStat v={plates.length.toLocaleString()} l="POSTED" />
-            <ProfileStat v={totalUpvotes.toLocaleString()} l="TOTAL UPVOTES" accent={PG.c.rust} />
-            <ProfileStat v={unlockedStates.size.toLocaleString()} l="STATES" accent={PG.c.cobalt} />
-            <ProfileStat v={favorites.length.toLocaleString()} l="SAVED" />
-            <button
+          </motion.div>
+          <motion.div
+            variants={{
+              hidden: {},
+              show: { transition: { staggerChildren: 0.06, delayChildren: 0.15 } },
+            }}
+            className="ml-auto flex flex-wrap items-center gap-3"
+          >
+            <ProfileStat v={plates.length} l="POSTED" />
+            <ProfileStat v={totalUpvotes} l="TOTAL UPVOTES" accent={PG.c.rust} />
+            <ProfileStat v={unlockedStates.size} l="STATES" accent={PG.c.cobalt} />
+            <ProfileStat v={favorites.length} l="SAVED" />
+            <motion.button
               type="button"
               onClick={handleSignOut}
+              variants={{
+                hidden: { opacity: 0, y: 8 },
+                show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: EASE_OUT } },
+              }}
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.96 }}
               className="h-12 rounded-full border-[1.5px] border-rule bg-ink px-5.5 font-sans text-[13px] font-extrabold uppercase tracking-[0.3px] text-cream"
               style={{ boxShadow: '0 3px 0 var(--color-rule)' }}
             >
               Sign out
-            </button>
-          </div>
+            </motion.button>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
 
       <div className="grid gap-6 px-8 py-5 lg:grid-cols-[1fr_320px]">
         {/* Main panel */}
         <section>
           <div className="mb-4 flex flex-wrap gap-1.5">
             {(['plates', 'votes', 'favorites'] as const).map((t) => (
-              <button
+              <motion.button
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.94 }}
+                transition={{ duration: 0.14, ease: EASE_OUT }}
                 className={clsx(
-                  'rounded-full border-[1.5px] border-rule px-3.5 py-1.5 text-[12px] font-extrabold uppercase tracking-[0.3px]',
-                  tab === t ? 'bg-ink text-cream' : 'bg-paper text-ink',
+                  'relative rounded-full border-[1.5px] border-rule bg-paper px-3.5 py-1.5 text-[12px] font-extrabold uppercase tracking-[0.3px]',
+                  tab === t ? 'text-cream' : 'text-ink',
                 )}
               >
-                {t === 'plates' ? 'My Posts' : t === 'favorites' ? 'Saved' : 'My Votes'}
-              </button>
+                {tab === t && (
+                  <motion.span
+                    layoutId="profile-tab-indicator"
+                    className="absolute inset-[-1.5px] -z-10 rounded-full bg-ink"
+                    transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+                  />
+                )}
+                <span className="relative z-10">
+                  {t === 'plates' ? 'My Posts' : t === 'favorites' ? 'Saved' : 'My Votes'}
+                </span>
+              </motion.button>
             ))}
           </div>
 
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={tab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.22, ease: EASE_OUT }}
+            >
           {tab === 'plates' && (
             <>
               {plates.length > 0 ? (
@@ -289,6 +379,8 @@ export default function Profile() {
               )}
             </>
           )}
+            </motion.div>
+          </AnimatePresence>
         </section>
 
         {/* Sidebar */}
