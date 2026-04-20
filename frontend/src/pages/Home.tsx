@@ -223,7 +223,9 @@ function PlateOfTheDay() {
         className="block rounded-[14px] border-[1.5px] border-rule bg-paper p-3"
         style={{ boxShadow: '0 2px 0 var(--color-rule)' }}
       >
-        <Plate text={top.plate_text} state={top.state_code} width={248} />
+        <div className="flex justify-center">
+          <Plate text={top.plate_text} state={top.state_code} width={232} />
+        </div>
         <div className="mt-2 flex items-center gap-2">
           <div className="font-display text-[22px] font-black leading-none tracking-tight text-ink">
             {top.score.toLocaleString()}
