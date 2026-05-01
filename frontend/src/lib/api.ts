@@ -1,7 +1,7 @@
 import { getSession } from './supabase'
 import { handleMockRequest, isMockMode } from './mockData'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '')
 
 export class ApiError extends Error {
   status: number
