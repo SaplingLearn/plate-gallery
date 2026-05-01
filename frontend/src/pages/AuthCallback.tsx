@@ -9,9 +9,12 @@ export default function AuthCallback() {
   const { user, loading } = useAuth()
 
   useEffect(() => {
-    if (!loading && user) {
+    if (loading) return
+    if (user) {
       const next = searchParams.get('next') || '/'
       navigate(next, { replace: true })
+    } else {
+      navigate('/', { replace: true })
     }
   }, [user, loading, navigate, searchParams])
 

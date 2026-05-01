@@ -38,6 +38,7 @@ export const supabase: SupabaseClient = supabaseConfigured
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        flowType: 'pkce',
       },
     })
   : makeStubClient()
