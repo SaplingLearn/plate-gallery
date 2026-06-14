@@ -106,8 +106,18 @@ def _check_safety_ratings(candidate: dict) -> ImageCheckResult | None:
 def _interpret_moderation_json(raw: str) -> ImageCheckResult:
     """Parse the model's JSON verdict and translate it into an ImageCheckResult."""
     content = raw.strip()
-    if content.startswith("```"):
-        content = content.split("\n", 1)[-1].rsplit("```", 1)[0]
+    # Strip code fences
+    if "```" in content:
+        for part in content.split("```"):
+            part = part.strip().lstrip("json").strip()
+            if part.startswith("{"):
+                content = part
+                break
+    # Skip any preamble before the JSON object
+    if not content.startswith("{"):
+        start = content.find("{")
+        if start != -1:
+            content = content[start:]
     result = json.loads(content)
 
     if result.get("is_explicit"):
@@ -170,6 +180,23 @@ async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckR
             "responseMimeType": "application/json",
             "maxOutputTokens": 800,
             "thinkingConfig": {"thinkingBudget": 0},
+            "responseSchema": {
+                "type": "OBJECT",
+                "properties": {
+                    "is_license_plate": {"type": "BOOLEAN"},
+                    "is_explicit": {"type": "BOOLEAN"},
+                    "is_offensive_symbol": {"type": "BOOLEAN"},
+                    "quality_ok": {"type": "BOOLEAN"},
+                    "confidence": {"type": "NUMBER"},
+                },
+                "required": [
+                    "is_license_plate",
+                    "is_explicit",
+                    "is_offensive_symbol",
+                    "quality_ok",
+                    "confidence",
+                ],
+            },
         },
     }
 
