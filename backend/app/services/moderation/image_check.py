@@ -283,7 +283,8 @@ async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckR
 
 
 async def check_image_openai(image_bytes: bytes, plate_text: str) -> ImageCheckResult:
-    """Use OpenAI Vision to validate the image. Fails closed on errors."""
+    """Use OpenAI Vision to validate the image. Raises UpstreamError when the
+    provider cannot return a verdict; callers fail open."""
     api_key = settings.OPENAI_API_KEY
     if not api_key or not api_key.get_secret_value():
         logger.error("MODERATION_PROVIDER=openai but OPENAI_API_KEY is not set")
