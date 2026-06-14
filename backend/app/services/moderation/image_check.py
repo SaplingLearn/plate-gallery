@@ -246,7 +246,18 @@ async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckR
                 "Image moderation service returned an error. Please try again later."
             )
 
-        payload = resp.json()
+        try:
+            payload = resp.json()
+        except ValueError as e:
+            logger.error("Gemini returned a non-JSON body: %s", resp.text[:500])
+            raise UpstreamError(
+                "Image moderation service returned an unexpected response. Please try again."
+            ) from e
+        if not isinstance(payload, dict):
+            logger.error("Gemini returned a non-object JSON payload: %r", payload)
+            raise UpstreamError(
+                "Image moderation service returned an unexpected response. Please try again."
+            )
         break
     else:
         raise UpstreamError(
@@ -347,7 +358,7 @@ async def check_image_openai(image_bytes: bytes, plate_text: str) -> ImageCheckR
             )
             resp.raise_for_status()
             text = resp.json()["choices"][0]["message"]["content"]
-    except (httpx.HTTPError, KeyError, IndexError) as e:
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as e:
         logger.error("OpenAI vision request failed: %s", e)
         raise UpstreamError(
             "Image moderation service is temporarily unavailable. Please try again."

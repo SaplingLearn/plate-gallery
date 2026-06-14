@@ -397,6 +397,24 @@ class TestCheckImageGemini:
             await check_image_gemini(_png_bytes(), "ABC123")
 
     @respx.mock
+    async def test_non_json_200_raises_upstream(self, gemini_key):
+        respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-2.5-flash:generateContent"
+        ).mock(return_value=httpx.Response(200, text="<html>gateway error</html>"))
+        with pytest.raises(UpstreamError):
+            await check_image_gemini(_png_bytes(), "ABC123")
+
+    @respx.mock
+    async def test_non_dict_json_200_raises_upstream(self, gemini_key):
+        respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-2.5-flash:generateContent"
+        ).mock(return_value=httpx.Response(200, json=["not", "a", "dict"]))
+        with pytest.raises(UpstreamError):
+            await check_image_gemini(_png_bytes(), "ABC123")
+
+    @respx.mock
     async def test_retries_on_503_then_succeeds(self, gemini_key, monkeypatch):
         monkeypatch.setattr(image_check, "_RETRY_BACKOFF_SECONDS", 0)
         route = respx.post(
