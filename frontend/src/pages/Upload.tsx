@@ -117,6 +117,7 @@ export default function Upload() {
           reason === 'explicit' ? 'This image was flagged as inappropriate.' :
           reason === 'duplicate' ? 'This plate has already been uploaded.' :
           reason === 'offensive_text' ? 'The plate text was flagged as offensive.' :
+          reason === 'low_quality' ? 'The photo was too small or blurry to read the plate — try a sharper, closer shot.' :
           'This upload was rejected by our moderation system.'
         )
         setStep('rejected')
@@ -125,8 +126,11 @@ export default function Upload() {
         setErrorMessage('Come back in a bit.')
         setStep('error')
       } else {
+        console.error('Plate upload failed:', err)
         setErrorHeadline('Something went wrong.')
-        setErrorMessage(err instanceof Error ? err.message : 'Please try again.')
+        setErrorMessage(
+          err instanceof Error && err.message ? err.message : 'Please try again.'
+        )
         setStep('error')
       }
     }
