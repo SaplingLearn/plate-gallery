@@ -129,6 +129,19 @@ async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckR
             "Image moderation service is not configured. Please try again later."
         )
 
+    # Detect actual image format so Gemini can decode it correctly
+    try:
+        _img = Image.open(io.BytesIO(image_bytes))
+        mime_type = {
+            "JPEG": "image/jpeg",
+            "PNG": "image/png",
+            "WEBP": "image/webp",
+            "GIF": "image/gif",
+            "HEIC": "image/heic",
+        }.get(_img.format or "", "image/jpeg")
+    except Exception:
+        mime_type = "image/jpeg"
+
     b64 = base64.b64encode(image_bytes).decode()
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -136,7 +149,7 @@ async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckR
     )
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 url,
                 headers={"x-goog-api-key": api_key.get_secret_value()},
@@ -145,7 +158,7 @@ async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckR
                         {
                             "parts": [
                                 {"text": MODERATION_PROMPT},
-                                {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
+                                {"inline_data": {"mime_type": mime_type, "data": b64}},
                             ]
                         }
                     ],
@@ -156,7 +169,11 @@ async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckR
                     },
                 },
             )
-            resp.raise_for_status()
+            if not resp.is_success:
+                logger.error(
+                    "Gemini returned %s: %s", resp.status_code, resp.text[:500]
+                )
+                resp.raise_for_status()
             payload = resp.json()
     except httpx.HTTPError as e:
         logger.error("Gemini vision request failed: %s", e)
