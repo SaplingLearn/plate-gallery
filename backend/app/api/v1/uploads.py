@@ -39,8 +39,10 @@ async def sign_upload(
 
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise ValidationError(
-            f"Unsupported file type: {content_type}",
-            {"allowed": list(ALLOWED_CONTENT_TYPES)},
+            "Unsupported image format. Please upload a JPEG, PNG, or WebP. "
+            "iPhone HEIC photos usually convert automatically — if not, set "
+            "Camera → Formats to “Most Compatible,” or export as JPEG.",
+            {"allowed": sorted(ALLOWED_CONTENT_TYPES), "received": content_type},
         )
     if file_size_bytes < settings.UPLOAD_MIN_BYTES:
         raise ValidationError("File too small")

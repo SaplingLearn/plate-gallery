@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
 import json
@@ -13,6 +14,10 @@ from app.core.config import settings
 from app.core.errors import UpstreamError
 
 logger = logging.getLogger(__name__)
+
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+_MAX_ATTEMPTS = 2
+_RETRY_BACKOFF_SECONDS = 1.0
 
 
 @dataclass
@@ -130,8 +135,24 @@ def _interpret_moderation_json(raw: str) -> ImageCheckResult:
     return ImageCheckResult(ok=True)
 
 
+def _detect_mime(image_bytes: bytes) -> str:
+    """Best-effort image MIME detection for vision API calls."""
+    try:
+        fmt = Image.open(io.BytesIO(image_bytes)).format or ""
+    except Exception:
+        return "image/jpeg"
+    return {
+        "JPEG": "image/jpeg",
+        "PNG": "image/png",
+        "WEBP": "image/webp",
+        "GIF": "image/gif",
+        "HEIC": "image/heic",
+    }.get(fmt, "image/jpeg")
+
+
 async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckResult:
-    """Use Gemini Flash to validate the image. Fails closed on errors."""
+    """Use Gemini Flash to validate the image. Raises UpstreamError when the
+    provider cannot return a verdict; callers fail open."""
     api_key = settings.GEMINI_API_KEY
     if not api_key or not api_key.get_secret_value():
         logger.error("MODERATION_PROVIDER=gemini but GEMINI_API_KEY is not set")
@@ -139,69 +160,109 @@ async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckR
             "Image moderation service is not configured. Please try again later."
         )
 
-    # Detect actual image format so Gemini can decode it correctly
-    try:
-        _img = Image.open(io.BytesIO(image_bytes))
-        mime_type = {
-            "JPEG": "image/jpeg",
-            "PNG": "image/png",
-            "WEBP": "image/webp",
-            "GIF": "image/gif",
-            "HEIC": "image/heic",
-        }.get(_img.format or "", "image/jpeg")
-    except Exception:
-        mime_type = "image/jpeg"
-
+    mime_type = _detect_mime(image_bytes)
     b64 = base64.b64encode(image_bytes).decode()
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
         f"{settings.GEMINI_MODEL}:generateContent"
     )
-
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                url,
-                headers={"x-goog-api-key": api_key.get_secret_value()},
-                json={
-                    "contents": [
-                        {
-                            "parts": [
-                                {"text": MODERATION_PROMPT},
-                                {"inline_data": {"mime_type": mime_type, "data": b64}},
-                            ]
-                        }
-                    ],
-                    "generationConfig": {
-                        "temperature": 0,
-                        "responseMimeType": "application/json",
-                        "maxOutputTokens": 500,
-                        "thinkingConfig": {"thinkingBudget": 0},
-                        "responseSchema": {
-                            "type": "OBJECT",
-                            "properties": {
-                                "is_license_plate": {"type": "BOOLEAN"},
-                                "is_explicit": {"type": "BOOLEAN"},
-                                "is_offensive_symbol": {"type": "BOOLEAN"},
-                                "quality_ok": {"type": "BOOLEAN"},
-                                "confidence": {"type": "NUMBER"},
-                            },
-                            "required": ["is_license_plate", "is_explicit", "is_offensive_symbol", "quality_ok", "confidence"],
-                        },
-                    },
+    request_body = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": MODERATION_PROMPT},
+                    {"inline_data": {"mime_type": mime_type, "data": b64}},
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0,
+            "responseMimeType": "application/json",
+            "maxOutputTokens": 800,
+            "thinkingConfig": {"thinkingBudget": 0},
+            "responseSchema": {
+                "type": "OBJECT",
+                "properties": {
+                    "is_license_plate": {"type": "BOOLEAN"},
+                    "is_explicit": {"type": "BOOLEAN"},
+                    "is_offensive_symbol": {"type": "BOOLEAN"},
+                    "quality_ok": {"type": "BOOLEAN"},
+                    "confidence": {"type": "NUMBER"},
                 },
-            )
-            if not resp.is_success:
-                logger.error(
-                    "Gemini returned %s: %s", resp.status_code, resp.text[:500]
+                "required": [
+                    "is_license_plate",
+                    "is_explicit",
+                    "is_offensive_symbol",
+                    "quality_ok",
+                    "confidence",
+                ],
+            },
+        },
+    }
+
+    payload = None
+    for attempt in range(_MAX_ATTEMPTS):
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.post(
+                    url,
+                    headers={"x-goog-api-key": api_key.get_secret_value()},
+                    json=request_body,
                 )
-                resp.raise_for_status()
+        except httpx.HTTPError as e:
+            if attempt + 1 < _MAX_ATTEMPTS:
+                logger.warning(
+                    "Gemini request error (attempt %d/%d), retrying: %s",
+                    attempt + 1, _MAX_ATTEMPTS, e,
+                )
+                await asyncio.sleep(_RETRY_BACKOFF_SECONDS)
+                continue
+            logger.error(
+                "Gemini vision request failed after %d attempts: %s", _MAX_ATTEMPTS, e
+            )
+            raise UpstreamError(
+                "Image moderation service is temporarily unavailable. Please try again."
+            ) from e
+
+        if resp.status_code in RETRYABLE_STATUS:
+            if attempt + 1 < _MAX_ATTEMPTS:
+                logger.warning(
+                    "Gemini returned retryable %s (attempt %d/%d), retrying: %s",
+                    resp.status_code, attempt + 1, _MAX_ATTEMPTS, resp.text[:500],
+                )
+                await asyncio.sleep(_RETRY_BACKOFF_SECONDS)
+                continue
+            logger.error(
+                "Gemini returned %s after %d attempts: %s",
+                resp.status_code, _MAX_ATTEMPTS, resp.text[:500],
+            )
+            raise UpstreamError(
+                "Image moderation service is temporarily unavailable. Please try again."
+            )
+
+        if not resp.is_success:
+            logger.error("Gemini returned %s: %s", resp.status_code, resp.text[:500])
+            raise UpstreamError(
+                "Image moderation service returned an error. Please try again later."
+            )
+
+        try:
             payload = resp.json()
-    except httpx.HTTPError as e:
-        logger.error("Gemini vision request failed: %s", e)
+        except ValueError as e:
+            logger.error("Gemini returned a non-JSON body: %s", resp.text[:500])
+            raise UpstreamError(
+                "Image moderation service returned an unexpected response. Please try again."
+            ) from e
+        if not isinstance(payload, dict):
+            logger.error("Gemini returned a non-object JSON payload: %r", payload)
+            raise UpstreamError(
+                "Image moderation service returned an unexpected response. Please try again."
+            )
+        break
+    else:
         raise UpstreamError(
             "Image moderation service is temporarily unavailable. Please try again."
-        ) from e
+        )
 
     prompt_feedback = payload.get("promptFeedback") or {}
     block_reason = prompt_feedback.get("blockReason")
@@ -233,8 +294,17 @@ async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckR
     if safety_reject:
         return safety_reject
 
+    parts = (candidate.get("content") or {}).get("parts") or []
+    if not parts or finish_reason in {"MAX_TOKENS", "RECITATION", "OTHER"}:
+        logger.error(
+            "Gemini returned no usable text (finishReason=%s): %s", finish_reason, payload
+        )
+        raise UpstreamError(
+            "Image moderation service returned an incomplete response. Please try again."
+        )
+
     try:
-        text = candidate["content"]["parts"][0]["text"]
+        text = parts[0]["text"]
     except (KeyError, IndexError) as e:
         logger.error("Gemini response missing text: %s (%s)", payload, e)
         raise UpstreamError(
@@ -251,7 +321,8 @@ async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckR
 
 
 async def check_image_openai(image_bytes: bytes, plate_text: str) -> ImageCheckResult:
-    """Use OpenAI Vision to validate the image. Fails closed on errors."""
+    """Use OpenAI Vision to validate the image. Raises UpstreamError when the
+    provider cannot return a verdict; callers fail open."""
     api_key = settings.OPENAI_API_KEY
     if not api_key or not api_key.get_secret_value():
         logger.error("MODERATION_PROVIDER=openai but OPENAI_API_KEY is not set")
@@ -275,7 +346,7 @@ async def check_image_openai(image_bytes: bytes, plate_text: str) -> ImageCheckR
                                 {
                                     "type": "image_url",
                                     "image_url": {
-                                        "url": f"data:image/jpeg;base64,{b64}",
+                                        "url": f"data:{_detect_mime(image_bytes)};base64,{b64}",
                                         "detail": "low",
                                     },
                                 },
@@ -287,7 +358,7 @@ async def check_image_openai(image_bytes: bytes, plate_text: str) -> ImageCheckR
             )
             resp.raise_for_status()
             text = resp.json()["choices"][0]["message"]["content"]
-    except (httpx.HTTPError, KeyError, IndexError) as e:
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as e:
         logger.error("OpenAI vision request failed: %s", e)
         raise UpstreamError(
             "Image moderation service is temporarily unavailable. Please try again."

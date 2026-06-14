@@ -11,6 +11,7 @@ from pydantic import SecretStr
 
 from app.core.config import settings
 from app.core.errors import UpstreamError
+from app.services.moderation import image_check
 from app.services.moderation.image_check import (
     _check_safety_ratings,
     _interpret_moderation_json,
@@ -23,6 +24,12 @@ from app.services.moderation.image_check import (
 def _png_bytes(size: tuple[int, int] = (600, 400), color: str = "blue") -> bytes:
     buf = io.BytesIO()
     Image.new("RGB", size, color).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _webp_bytes(size: tuple[int, int] = (600, 400), color: str = "green") -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", size, color).save(buf, format="WEBP")
     return buf.getvalue()
 
 
@@ -319,13 +326,131 @@ class TestCheckImageGemini:
         assert result.reason == "explicit"
 
     @respx.mock
-    async def test_http_error_raises_upstream(self, gemini_key):
+    async def test_http_error_raises_upstream(self, gemini_key, monkeypatch):
+        monkeypatch.setattr(image_check, "_RETRY_BACKOFF_SECONDS", 0)
         respx.post(
             "https://generativelanguage.googleapis.com/v1beta/models/"
             "gemini-2.5-flash:generateContent"
         ).mock(return_value=httpx.Response(500, json={"error": "down"}))
         with pytest.raises(UpstreamError):
             await check_image_gemini(_png_bytes(), "ABC123")
+
+    @respx.mock
+    async def test_request_disables_thinking_and_raises_token_cap(self, gemini_key):
+        route = respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-2.5-flash:generateContent"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json=_gemini_reply(
+                    {
+                        "is_license_plate": True,
+                        "is_explicit": False,
+                        "is_offensive_symbol": False,
+                        "quality_ok": True,
+                        "confidence": 0.95,
+                    }
+                ),
+            )
+        )
+        await check_image_gemini(_png_bytes(), "ABC123")
+        body = json.loads(route.calls.last.request.content)
+        assert body["generationConfig"]["thinkingConfig"]["thinkingBudget"] == 0
+        assert body["generationConfig"]["maxOutputTokens"] == 800
+
+    @respx.mock
+    async def test_request_sends_detected_mime(self, gemini_key):
+        route = respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-2.5-flash:generateContent"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json=_gemini_reply(
+                    {
+                        "is_license_plate": True,
+                        "is_explicit": False,
+                        "is_offensive_symbol": False,
+                        "quality_ok": True,
+                        "confidence": 0.9,
+                    }
+                ),
+            )
+        )
+        await check_image_gemini(_webp_bytes(), "ABC123")
+        body = json.loads(route.calls.last.request.content)
+        assert body["contents"][0]["parts"][1]["inline_data"]["mime_type"] == "image/webp"
+
+    @respx.mock
+    async def test_max_tokens_with_no_parts_raises_upstream(self, gemini_key):
+        respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-2.5-flash:generateContent"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"candidates": [{"content": {"role": "model"}, "finishReason": "MAX_TOKENS"}]},
+            )
+        )
+        with pytest.raises(UpstreamError):
+            await check_image_gemini(_png_bytes(), "ABC123")
+
+    @respx.mock
+    async def test_non_json_200_raises_upstream(self, gemini_key):
+        respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-2.5-flash:generateContent"
+        ).mock(return_value=httpx.Response(200, text="<html>gateway error</html>"))
+        with pytest.raises(UpstreamError):
+            await check_image_gemini(_png_bytes(), "ABC123")
+
+    @respx.mock
+    async def test_non_dict_json_200_raises_upstream(self, gemini_key):
+        respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-2.5-flash:generateContent"
+        ).mock(return_value=httpx.Response(200, json=["not", "a", "dict"]))
+        with pytest.raises(UpstreamError):
+            await check_image_gemini(_png_bytes(), "ABC123")
+
+    @respx.mock
+    async def test_retries_on_503_then_succeeds(self, gemini_key, monkeypatch):
+        monkeypatch.setattr(image_check, "_RETRY_BACKOFF_SECONDS", 0)
+        route = respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-2.5-flash:generateContent"
+        ).mock(
+            side_effect=[
+                httpx.Response(503, json={"error": "overloaded"}),
+                httpx.Response(
+                    200,
+                    json=_gemini_reply(
+                        {
+                            "is_license_plate": True,
+                            "is_explicit": False,
+                            "is_offensive_symbol": False,
+                            "quality_ok": True,
+                            "confidence": 0.9,
+                        }
+                    ),
+                ),
+            ]
+        )
+        result = await check_image_gemini(_png_bytes(), "ABC123")
+        assert result.ok
+        assert route.call_count == 2
+
+    @respx.mock
+    async def test_retries_exhausted_raises_upstream(self, gemini_key, monkeypatch):
+        monkeypatch.setattr(image_check, "_RETRY_BACKOFF_SECONDS", 0)
+        route = respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-2.5-flash:generateContent"
+        ).mock(return_value=httpx.Response(503, json={"error": "overloaded"}))
+        with pytest.raises(UpstreamError):
+            await check_image_gemini(_png_bytes(), "ABC123")
+        assert route.call_count == 2
 
     @respx.mock
     async def test_empty_candidates_raises_upstream(self, gemini_key):
