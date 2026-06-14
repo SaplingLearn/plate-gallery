@@ -101,8 +101,18 @@ def _check_safety_ratings(candidate: dict) -> ImageCheckResult | None:
 def _interpret_moderation_json(raw: str) -> ImageCheckResult:
     """Parse the model's JSON verdict and translate it into an ImageCheckResult."""
     content = raw.strip()
-    if content.startswith("```"):
-        content = content.split("\n", 1)[-1].rsplit("```", 1)[0]
+    # Strip code fences
+    if "```" in content:
+        for part in content.split("```"):
+            part = part.strip().lstrip("json").strip()
+            if part.startswith("{"):
+                content = part
+                break
+    # Skip any preamble before the JSON object
+    if not content.startswith("{"):
+        start = content.find("{")
+        if start != -1:
+            content = content[start:]
     result = json.loads(content)
 
     if result.get("is_explicit"):
