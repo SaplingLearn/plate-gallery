@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import UpstreamError
 from app.services.moderation.duplicate_check import compute_phash, find_duplicate
 from app.services.moderation.image_check import check_image
 from app.services.moderation.text_check import check_text
@@ -43,21 +44,27 @@ async def run_moderation(
             approved=False, reason="offensive_text", detail=text_reason, signals={"text_hit": True}
         )
 
-    # 2. Image check
-    image_result = await check_image(image_bytes, plate_text)
-    if not image_result.ok:
-        duration = int((time.monotonic() - start) * 1000)
-        logger.info(
-            "moderation_decision approved=false reason=%s duration_ms=%d",
-            image_result.reason,
-            duration,
-        )
-        return ModerationResult(
-            approved=False,
-            reason=image_result.reason,
-            detail=image_result.detail,
-            signals={"image_check_reason": image_result.reason},
-        )
+    # 2. Image check — fail open if the provider cannot return a verdict
+    image_check_skipped = False
+    try:
+        image_result = await check_image(image_bytes, plate_text)
+    except UpstreamError as e:
+        logger.warning("moderation image check unavailable, failing open: %s", e)
+        image_check_skipped = True
+    else:
+        if not image_result.ok:
+            duration = int((time.monotonic() - start) * 1000)
+            logger.info(
+                "moderation_decision approved=false reason=%s duration_ms=%d",
+                image_result.reason,
+                duration,
+            )
+            return ModerationResult(
+                approved=False,
+                reason=image_result.reason,
+                detail=image_result.detail,
+                signals={"image_check_reason": image_result.reason},
+            )
 
     # 3. Duplicate check
     try:
@@ -84,5 +91,11 @@ async def run_moderation(
             )
 
     duration = int((time.monotonic() - start) * 1000)
-    logger.info("moderation_decision approved=true duration_ms=%d", duration)
-    return ModerationResult(approved=True, phash=phash, signals={})
+    logger.info(
+        "moderation_decision approved=true image_check_skipped=%s duration_ms=%d",
+        image_check_skipped,
+        duration,
+    )
+    return ModerationResult(
+        approved=True, phash=phash, signals={"image_check_skipped": image_check_skipped}
+    )
