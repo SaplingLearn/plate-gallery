@@ -175,7 +175,19 @@ async def check_image_gemini(image_bytes: bytes, plate_text: str) -> ImageCheckR
                     "generationConfig": {
                         "temperature": 0,
                         "responseMimeType": "application/json",
-                        "maxOutputTokens": 200,
+                        "maxOutputTokens": 500,
+                        "thinkingConfig": {"thinkingBudget": 0},
+                        "responseSchema": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "is_license_plate": {"type": "BOOLEAN"},
+                                "is_explicit": {"type": "BOOLEAN"},
+                                "is_offensive_symbol": {"type": "BOOLEAN"},
+                                "quality_ok": {"type": "BOOLEAN"},
+                                "confidence": {"type": "NUMBER"},
+                            },
+                            "required": ["is_license_plate", "is_explicit", "is_offensive_symbol", "quality_ok", "confidence"],
+                        },
                     },
                 },
             )
