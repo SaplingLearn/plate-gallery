@@ -15,6 +15,17 @@ from app.schemas.leaderboard import LeaderboardResponse
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
+_WINDOW_INTERVALS = {
+    "day": "interval '1 day'",
+    "week": "interval '7 days'",
+    "month": "interval '30 days'",
+    "year": "interval '365 days'",
+}
+
+
+def _window_interval(window: str) -> str | None:
+    return _WINDOW_INTERVALS.get(window)
+
 
 async def _load_user_votes(
     db: AsyncSession, user: User | None, plate_ids: list
@@ -31,7 +42,7 @@ async def _load_user_votes(
 
 @router.get("/overall", response_model=LeaderboardResponse)
 async def leaderboard_overall(
-    window: Literal["day", "week", "month", "all"] = Query(default="all"),
+    window: Literal["day", "week", "month", "year", "all"] = Query(default="all"),
     limit: int = Query(default=50, ge=1, le=100),
     user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
@@ -43,12 +54,9 @@ async def leaderboard_overall(
         .limit(limit)
     )
 
-    if window == "day":
-        stmt = stmt.where(Plate.created_at > func.now() - text("interval '1 day'"))
-    elif window == "week":
-        stmt = stmt.where(Plate.created_at > func.now() - text("interval '7 days'"))
-    elif window == "month":
-        stmt = stmt.where(Plate.created_at > func.now() - text("interval '30 days'"))
+    interval = _window_interval(window)
+    if interval is not None:
+        stmt = stmt.where(Plate.created_at > func.now() - text(interval))
 
     result = await db.execute(stmt)
     plates = list(result.scalars().all())
@@ -65,7 +73,7 @@ async def leaderboard_overall(
 @router.get("/state/{state_code}", response_model=LeaderboardResponse)
 async def leaderboard_state(
     state_code: str,
-    window: Literal["day", "week", "month", "all"] = Query(default="all"),
+    window: Literal["day", "week", "month", "year", "all"] = Query(default="all"),
     limit: int = Query(default=10, ge=1, le=50),
     user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
@@ -78,12 +86,9 @@ async def leaderboard_state(
         .limit(limit)
     )
 
-    if window == "day":
-        stmt = stmt.where(Plate.created_at > func.now() - text("interval '1 day'"))
-    elif window == "week":
-        stmt = stmt.where(Plate.created_at > func.now() - text("interval '7 days'"))
-    elif window == "month":
-        stmt = stmt.where(Plate.created_at > func.now() - text("interval '30 days'"))
+    interval = _window_interval(window)
+    if interval is not None:
+        stmt = stmt.where(Plate.created_at > func.now() - text(interval))
 
     result = await db.execute(stmt)
     plates = list(result.scalars().all())

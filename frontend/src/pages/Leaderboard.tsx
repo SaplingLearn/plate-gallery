@@ -67,7 +67,7 @@ function PodiumCard({
           className="font-display font-black leading-none tracking-[-1px]"
           style={{ fontSize: big ? 44 : 36 }}
         >
-          ▲ {plate.upvotes.toLocaleString()}
+          ▲ {plate.score.toLocaleString()}
         </div>
         <div className="text-[12px] font-bold opacity-85">
           @{plate.author?.display_name ?? 'anonymous'}
@@ -90,7 +90,7 @@ function LeaderRows({ rows }: { rows: Plate[] }) {
         <div>#</div>
         <div>PLATE</div>
         <div>CREATOR</div>
-        <div>UPVOTES</div>
+        <div>SCORE</div>
         <div>STATE</div>
       </div>
       {rows.map((r, i) => (
@@ -114,7 +114,7 @@ function LeaderRows({ rows }: { rows: Plate[] }) {
             </div>
           </div>
           <div className="font-display text-[22px] font-black tracking-[-0.3px] text-ink">
-            {r.upvotes.toLocaleString()}
+            {r.score.toLocaleString()}
           </div>
           <div className="font-mono text-[11px] font-bold text-ink-soft">
             {r.state_code}
@@ -188,6 +188,7 @@ export default function Leaderboard() {
   const active = view === 'state' ? state : overall
   const plates = active.data?.items ?? []
   const isLoading = active.isLoading
+  const isError = active.isError
   const [p1, p2, p3] = plates
   const rest = plates.slice(3, view === 'state' ? 10 : 11)
 
@@ -267,6 +268,13 @@ export default function Leaderboard() {
 
       {isLoading ? (
         <div className="py-16 text-center font-mono text-sm text-ink-muted">Loading leaderboard…</div>
+      ) : isError ? (
+        <div className="mt-10 rounded-[18px] border-[1.5px] border-dashed border-rule bg-paper p-12 text-center">
+          <h2 className="font-display text-3xl font-black tracking-tight text-ink">Couldn't load the leaderboard.</h2>
+          <p className="mt-2 text-sm font-semibold text-ink-soft">
+            Something went wrong fetching the rankings. Please try again.
+          </p>
+        </div>
       ) : plates.length === 0 ? (
         <div className="mt-10 rounded-[18px] border-[1.5px] border-dashed border-rule bg-paper p-12 text-center">
           <h2 className="font-display text-3xl font-black tracking-tight text-ink">No plates ranked yet.</h2>
