@@ -15,31 +15,32 @@ async def check_and_record(
     bucket: str,
     user_id: uuid.UUID | None,
     ip: str | None,
-    limits: list[tuple[int, timedelta]],
+    user_limits: list[tuple[int, timedelta]] | None = None,
+    ip_limits: list[tuple[int, timedelta]] | None = None,
 ) -> None:
-    """Check rate limits and record the event. Raises RateLimitedError if over limit."""
-    for max_count, window in limits:
-        cutoff = func.now() - window
-        if user_id:
-            stmt = select(func.count()).where(
-                RateLimitEvent.user_id == user_id,
-                RateLimitEvent.bucket == bucket,
-                RateLimitEvent.created_at > cutoff,
-            )
-        elif ip:
-            stmt = select(func.count()).where(
-                RateLimitEvent.ip == ip,
-                RateLimitEvent.bucket == bucket,
-                RateLimitEvent.created_at > cutoff,
-            )
-        else:
-            continue
+    """Check rate limits per scope and record the event.
 
-        result = await db.execute(stmt)
-        count = result.scalar() or 0
-        if count >= max_count:
-            retry_after = int(window.total_seconds())
-            raise RateLimitedError(retry_after=retry_after)
+    Each provided scope (user, ip) is checked independently against its own
+    limits; the call raises RateLimitedError if EITHER scope is over limit.
+    """
+    scopes: list[tuple[object, object, list[tuple[int, timedelta]]]] = []
+    if user_id is not None and user_limits:
+        scopes.append((RateLimitEvent.user_id, user_id, user_limits))
+    if ip is not None and ip_limits:
+        scopes.append((RateLimitEvent.ip, ip, ip_limits))
+
+    for column, value, limits in scopes:
+        for max_count, window in limits:
+            cutoff = func.now() - window
+            stmt = select(func.count()).where(
+                column == value,
+                RateLimitEvent.bucket == bucket,
+                RateLimitEvent.created_at > cutoff,
+            )
+            result = await db.execute(stmt)
+            count = result.scalar() or 0
+            if count >= max_count:
+                raise RateLimitedError(retry_after=int(window.total_seconds()))
 
     event = RateLimitEvent(user_id=user_id, ip=ip, bucket=bucket)
     db.add(event)

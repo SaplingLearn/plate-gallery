@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import get_current_user, get_current_user_optional
+from app.api.v1.deps import get_client_ip, get_current_user, get_current_user_optional
+from app.core.config import settings
 from app.core.errors import (
     ModerationRejectedError,
     NotFoundError,
@@ -22,6 +23,7 @@ from app.schemas.plate import CreatePlateRequest, PlateDetailResponse, PlateResp
 from app.schemas.user import AuthorResponse
 from app.services.feed import query_feed
 from app.services.moderation.pipeline import run_moderation
+from app.services.rate_limit import check_and_record
 from app.services.storage import storage_service
 
 router = APIRouter(prefix="/plates", tags=["plates"])
@@ -136,9 +138,24 @@ async def get_plate(
 @router.post("", response_model=PlateResponse)
 async def create_plate(
     body: CreatePlateRequest,
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PlateResponse:
+    # Rate limit (independent of the upload/sign bucket)
+    ip = get_client_ip(request)
+    await check_and_record(
+        db,
+        bucket="plate_create",
+        user_id=user.id,
+        ip=ip,
+        user_limits=[
+            (settings.RATE_LIMIT_UPLOADS_PER_HOUR, timedelta(hours=1)),
+            (settings.RATE_LIMIT_UPLOADS_PER_DAY, timedelta(days=1)),
+        ],
+        ip_limits=[(settings.RATE_LIMIT_UPLOADS_PER_HOUR_IP, timedelta(hours=1))],
+    )
+
     # Validate upload token
     result = await db.execute(
         select(UploadToken).where(UploadToken.token == body.upload_token)

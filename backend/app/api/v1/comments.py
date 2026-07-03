@@ -105,7 +105,7 @@ async def create_comment(
         bucket="comment",
         user_id=user.id,
         ip=ip,
-        limits=[
+        user_limits=[
             (settings.RATE_LIMIT_COMMENTS_PER_MINUTE, timedelta(minutes=1)),
             (settings.RATE_LIMIT_COMMENTS_PER_DAY, timedelta(days=1)),
         ],

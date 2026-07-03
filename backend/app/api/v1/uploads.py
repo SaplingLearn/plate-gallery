@@ -57,10 +57,11 @@ async def sign_upload(
         bucket="upload",
         user_id=user.id,
         ip=ip,
-        limits=[
+        user_limits=[
             (settings.RATE_LIMIT_UPLOADS_PER_HOUR, timedelta(hours=1)),
             (settings.RATE_LIMIT_UPLOADS_PER_DAY, timedelta(days=1)),
         ],
+        ip_limits=[(settings.RATE_LIMIT_UPLOADS_PER_HOUR_IP, timedelta(hours=1))],
     )
 
     # Generate plate ID and object path

@@ -41,7 +41,7 @@ async def vote_on_plate(
         bucket="vote",
         user_id=user.id,
         ip=ip,
-        limits=[(settings.RATE_LIMIT_VOTES_PER_MINUTE, timedelta(minutes=1))],
+        user_limits=[(settings.RATE_LIMIT_VOTES_PER_MINUTE, timedelta(minutes=1))],
     )
 
     # Get existing vote
