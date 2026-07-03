@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { clsx } from 'clsx'
 import { useFeed, useMapSummary, useLeaderboard } from '@/hooks/useApi'
 import { Plate } from '@/components/Plate'
@@ -7,7 +7,7 @@ import { StateBadge } from '@/components/StateBadge'
 import { PlateCard } from '@/components/PlateCard'
 import { US_STATES } from '@/lib/states'
 import { useAuth } from '@/hooks/AuthContext'
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 
 const SORTS = [
   { k: 'top_week', label: 'Hot 🔥' },
@@ -343,17 +343,29 @@ export default function Home() {
     setSearchParams(next, { replace: true })
   }
 
+  const [stateDrawerOpen, setStateDrawerOpen] = useState(false)
+
   return (
     <motion.main
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 4 }}
       transition={{ duration: 0.25 }}
-      className="grid min-h-[calc(100vh-72px)] grid-cols-[220px_1fr_300px]"
+      className="grid min-h-[calc(100vh-72px)] grid-cols-1 lg:grid-cols-[220px_1fr_300px]"
     >
-      <FeedSideNav currentState={stateFilter} onStateChange={setStateFilter} />
-      <section className="overflow-hidden px-7 py-5">
+      <div className="hidden lg:block">
+        <FeedSideNav currentState={stateFilter} onStateChange={setStateFilter} />
+      </div>
+      <section className="overflow-hidden px-4 py-5 lg:px-7">
         <FeedHero count={plates.length} />
+        <button
+          type="button"
+          onClick={() => setStateDrawerOpen(true)}
+          className="mt-4 flex items-center gap-2 rounded-full border-[1.5px] border-rule bg-paper px-4 py-2 text-[13px] font-extrabold uppercase tracking-[0.3px] text-ink lg:hidden"
+        >
+          <span className="text-base leading-none">☰</span>
+          Browse states{stateFilter ? ` · ${stateFilter}` : ''}
+        </button>
         {query && (
           <div className="mt-4 flex items-center gap-3 rounded-xl border-[1.5px] border-rule bg-mustard-lite px-4 py-2.5">
             <span className="font-mono text-[10px] font-bold uppercase tracking-[1.5px] text-ink-muted">
@@ -410,7 +422,37 @@ export default function Home() {
           <div className="py-6 text-center font-mono text-sm text-ink-muted">Loading more…</div>
         )}
       </section>
-      <FeedRightRail />
+      <div className="hidden lg:block">
+        <FeedRightRail />
+      </div>
+      <AnimatePresence>
+        {stateDrawerOpen && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-40 bg-ink/40 lg:hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setStateDrawerOpen(false)}
+            />
+            <motion.div
+              className="fixed left-0 top-0 z-50 h-full w-[280px] max-w-[85vw] overflow-y-auto bg-cream lg:hidden"
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'tween', duration: 0.25 }}
+            >
+              <FeedSideNav
+                currentState={stateFilter}
+                onStateChange={(c) => {
+                  setStateFilter(c)
+                  setStateDrawerOpen(false)
+                }}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </motion.main>
   )
 }

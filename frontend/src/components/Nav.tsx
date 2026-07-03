@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { clsx } from 'clsx'
 import { useAuth } from '@/hooks/AuthContext'
 import { LogoMark } from './LogoMark'
@@ -15,6 +16,7 @@ export function Nav() {
   const { user, loading } = useAuth()
   const navigate = useNavigate()
   const [q, setQ] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -31,7 +33,15 @@ export function Nav() {
   })()
 
   return (
-    <nav className="sticky top-0 z-50 flex h-[72px] items-center gap-8 border-b-[1.5px] border-rule bg-cream px-8">
+    <nav className="sticky top-0 z-50 flex h-[72px] items-center gap-3 border-b-[1.5px] border-rule bg-cream px-4 lg:gap-8 lg:px-8">
+      <button
+        type="button"
+        aria-label="Open menu"
+        onClick={() => setMenuOpen(true)}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-[1.5px] border-rule bg-paper text-lg text-ink lg:hidden"
+      >
+        ☰
+      </button>
       <Link to="/" className="flex items-center gap-2.5">
         <LogoMark size={38} />
         <span className="font-display text-[30px] font-black leading-none tracking-tight text-ink">
@@ -39,7 +49,7 @@ export function Nav() {
         </span>
       </Link>
 
-      <div className="ml-4 flex gap-1">
+      <div className="ml-4 hidden gap-1 lg:flex">
         {LINKS.map((l) => (
           <NavLink
             key={l.to}
@@ -81,10 +91,11 @@ export function Nav() {
       <button
         type="button"
         onClick={() => navigate(user ? '/upload' : '/login?next=/upload')}
-        className="flex h-11 items-center gap-2 rounded-full bg-rust px-5 font-sans text-[15px] font-extrabold uppercase tracking-wide text-white transition-transform hover:-translate-y-px"
+        className="ml-auto flex h-11 items-center gap-2 rounded-full bg-rust px-3 font-sans text-[15px] font-extrabold uppercase tracking-wide text-white transition-transform hover:-translate-y-px md:ml-0 lg:px-5"
         style={{ boxShadow: '0 3px 0 var(--color-rust-deep), 0 6px 14px rgba(40,26,10,0.22)' }}
       >
-        <span className="text-lg leading-none">+</span> POST A PLATE
+        <span className="text-lg leading-none">+</span>
+        <span className="hidden lg:inline">POST A PLATE</span>
       </button>
 
       {!loading && user ? (
@@ -107,6 +118,44 @@ export function Nav() {
           Sign in
         </Link>
       ) : null}
+
+      <AnimatePresence>
+        {menuOpen && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-40 bg-ink/40 lg:hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMenuOpen(false)}
+            />
+            <motion.div
+              className="fixed left-0 top-0 z-50 flex h-full w-[260px] max-w-[80vw] flex-col gap-2 overflow-y-auto bg-cream p-4 lg:hidden"
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'tween', duration: 0.25 }}
+            >
+              {LINKS.map((l) => (
+                <NavLink
+                  key={l.to}
+                  to={l.to}
+                  end={l.end}
+                  onClick={() => setMenuOpen(false)}
+                  className={({ isActive }) =>
+                    clsx(
+                      'rounded-full border-[1.5px] px-4 py-2.5 font-sans text-[15px] font-bold',
+                      isActive ? 'border-rule bg-paper text-ink' : 'border-transparent text-ink-soft',
+                    )
+                  }
+                >
+                  {l.label}
+                </NavLink>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </nav>
   )
 }
